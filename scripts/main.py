@@ -51,7 +51,32 @@ class CredibilityAugmentor(pl.LightningModule):
         return self._common_epoch_end(outputs, 'tr')
 
     def configure_optimizers(self):
-        optim = torch.optim.AdamW(self.parameters(), lr=self.lr, amsgrad=True)
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": self.hparams.weight_decay,
+            },
+            {
+                "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = AdamW(optimizer_grouped_parameters, lr=self.hparams.learning_rate, eps=self.hparams.adam_epsilon)
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.hparams.warmup_steps,
+            num_training_steps=self.trainer.estimated_stepping_batches,
+        )
+
+        return {
+                'optimizer': optimizer,
+                'lr_scheduler': {
+                    'scheduler': scheduler,
+                    'monitor': 'val/loss',
+                    'frequency': self.trainer.check_val_every_n_epoch
+                },
+            }
 
     def train_dataloader(self):
         return DataLoader(self.datasets['train'], self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self._collate_fn)
@@ -63,7 +88,7 @@ class CredibilityAugmentor(pl.LightningModule):
         return DataLoader(self.datasets['test'], self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self._collate_fn)
 
     def _collate_fn(self, batch):
-
+        pass
 
     def get_callback_fn(self, monitor='val/loss', patience=50):
         early_stopping_callback = EarlyStopping(
