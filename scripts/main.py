@@ -33,8 +33,35 @@ class AugmentModel(nn.Module):
         pass
 
 class CredibilityAugmentor(pl.LightningModule):
-    def __init__(self):
+    def __init__(
+        self,
+        model_name_or_path,
+        dataset_type,
+        data_file,
+        vocab_file,
+        accumulate_grad_batches,
+        max_steps,
+        num_training_cases,
+        batch_size,
+        max_epochs,
+        devices,
+        lr,
+        eps,
+        betas,
+        warmup_steps,
+        num_workers,
+        max_seq_length,
+        num_display,
+        data_dir='data/',
+        cache_dir='cache/',
+        **kwargs
+    ):
         pass
+
+    def setup(self, stage):
+        datasets = torch.load(self.data_file)
+
+        print(f'[INFO] {self.dataset_type} dataset loaded.')
 
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
@@ -62,10 +89,10 @@ class CredibilityAugmentor(pl.LightningModule):
                 "weight_decay": 0.0,
             },
         ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=self.hparams.learning_rate, eps=self.hparams.adam_epsilon)
+        optimizer = AdamW(optimizer_grouped_parameters, lr=self.lr, betas=self.betas, eps=self.eps)
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
-            num_warmup_steps=self.hparams.warmup_steps,
+            num_warmup_steps=self.warmup_steps,
             num_training_steps=self.trainer.estimated_stepping_batches,
         )
 
@@ -77,6 +104,27 @@ class CredibilityAugmentor(pl.LightningModule):
                     'frequency': self.trainer.check_val_every_n_epoch
                 },
             }
+
+    def get_estimated_stepping_batches(self):
+        # check that max_steps is not None and is greater than 0
+        if self.max_steps and self.max_steps > 0:
+            # pytorch_lightning steps the scheduler every batch but only updates
+            # the global_step every gradient accumulation cycle. Therefore, the
+            # scheduler needs to have `accumulate_grad_batches` * `max_steps` in
+            # order to reach `max_steps`.
+            # See: https://github.com/PyTorchLightning/pytorch-lightning/blob/f293c9b5f4b4f9fabb2eec0c369f08a66c57ef14/pytorch_lightning/trainer/training_loop.py#L624
+            t_total = self.max_steps * self.accumulate_grad_batches
+        else:
+            t_total = int(
+                (
+                    num_training_cases
+                    // (batch_size * max(1, gpus))
+                )
+                * self.max_epochs
+                // self.accumulate_grad_batches
+            )
+
+        return t_total
 
     def train_dataloader(self):
         return DataLoader(self.datasets['train'], self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self._collate_fn)
@@ -123,7 +171,8 @@ def main(hparams):
     # os.environ["TOKENIZERS_PARALLELISM"] = "false"
     transformers.set_seed(hparams.seed)
     hparams.version = len(os.listdir(hparams.output_dir)) if os.path.isdir(hparams.output_dir) else 1
-    module = CredibilityAugmentor()
+    params = vars(hparams)
+    module = CredibilityAugmentor(**params)
 
     # callbacks
     early_stopping, ckpt = module.get_callback_fn('val/loss', 50)
@@ -131,7 +180,7 @@ def main(hparams):
     if hparams.use_early_stopping:
         callbacks_list.append(early_stopping)
 
-    logger = module.get_logger(**vars(hparams))
+    logger = module.get_logger(**params)
     hparams.logger = logger
 
     # trainer
@@ -157,13 +206,13 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', default='output')
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--cache_dir", default="cache/", type=str)
-    parser.add_argument("--train_file", default='train.json', type=str)
-    parser.add_argument("--eval_file", default='eval.json', type=str)
-    parser.add_argument("--test_file", default='test.json', type=str)
+    # parser.add_argument("--train_file", default='train.json', type=str)
+    # parser.add_argument("--eval_file", default='eval.json', type=str)
+    # parser.add_argument("--test_file", default='test.json', type=str)
     parser.add_argument("--do_test", action="store_true")
 
     parser.add_argument("--use_logger", default="wandb", type=str, choices=["tensorboard", "wandb"])
-    parser.add_argument("--use_scheduler", default="linear", type=str, choices=["linear", "onecycle"])
+    # parser.add_argument("--use_scheduler", default="linear", type=str, choices=["linear", "onecycle"])
     parser.add_argument("--overwrite_cache", action="store_true", default=False)
     parser.add_argument("--use_fast_tokenizer", action="store_true", default=True)
     parser.add_argument("--num_workers", type=int, default=0)
@@ -176,11 +225,11 @@ if __name__ == '__main__':
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--overfit_batches", default=0, type=float, help="Not used, implemented in utils.py")
     parser.add_argument("--gradient_clip_val", default=0.0, type=float, help="Gradient clipping value")
-    parser.add_argument('--learning_rate', type=float, default=2e-5)
+    parser.add_argument('--lr', type=float, default=2e-4)
     parser.add_argument("--warmup_steps", type=int, default=100)
     parser.add_argument('--weight_decay', type=float, default=1e-2)
     parser.add_argument('--logging_steps', type=int, default=100)
-    parser.add_argument("--adam_epsilon", type=float, default=1e-6)
+    parser.add_argument("--eps", type=float, default=1e-6)
     parser.add_argument("--betas", type=float, default=(0.9, 0.98), nargs='+')
 
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
