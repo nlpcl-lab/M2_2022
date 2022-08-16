@@ -61,6 +61,15 @@ class CredibilityAugmentor(pl.LightningModule):
     def setup(self, stage):
         datasets = torch.load(self.data_file)
 
+        self.datasets = datasets.map(
+            self.tokenize_function,
+            batched=True,
+            remove_columns=[],
+            num_proc=None,  # default None
+            load_from_cache_file=True, # default False
+            desc="Running tokenizer on dataset line_by_line",
+        )
+
         print(f'[INFO] {self.dataset_type} dataset loaded.')
 
     def training_step(self, batch, batch_idx):
@@ -93,7 +102,7 @@ class CredibilityAugmentor(pl.LightningModule):
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
-            num_training_steps=self.trainer.estimated_stepping_batches,
+            num_training_steps=self.get_estimated_stepping_batches,
         )
 
         return {
@@ -117,8 +126,8 @@ class CredibilityAugmentor(pl.LightningModule):
         else:
             t_total = int(
                 (
-                    num_training_cases
-                    // (batch_size * max(1, gpus))
+                    len(self.datasets['train'])
+                    // (self.batch_size * max(1, len(self.devices)))
                 )
                 * self.max_epochs
                 // self.accumulate_grad_batches
