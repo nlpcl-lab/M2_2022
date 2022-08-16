@@ -17,17 +17,81 @@ from einops import rearrange
 from torch import einsum
 from torch.utils.data import DataLoader
 from transformers import (
+    AdamW,
     AutoConfig,
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    get_linear_schedule_with_warmup,
 )
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 
+
+class AugmentModel(nn.Module):
+    def __init__(self):
+        pass
+
 class CredibilityAugmentor(pl.LightningModule):
     def __init__(self):
         pass
+
+    def training_step(self, batch, batch_idx):
+        return self._common_step(batch, 'tr')
+
+    def validation_step(self, batch, batch_idx):
+        return self._common_step(batch, 'val')
+
+    def validation_epoch_end(self, outputs):
+        return self._common_epoch_end(outputs, 'val')
+
+    def training_epoch_end(self, outputs):
+        if not self.trainer.overfit_batches > 0.0:
+            return
+        return self._common_epoch_end(outputs, 'tr')
+
+    def configure_optimizers(self):
+        optim = torch.optim.AdamW(self.parameters(), lr=self.lr, amsgrad=True)
+
+    def train_dataloader(self):
+        return DataLoader(self.datasets['train'], self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self._collate_fn)
+
+    def val_dataloader(self):
+        return DataLoader(self.datasets['validation'], self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self._collate_fn)
+
+    def test_dataloader(self):
+        return DataLoader(self.datasets['test'], self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self._collate_fn)
+
+    def _collate_fn(self, batch):
+
+
+    def get_callback_fn(self, monitor='val/loss', patience=50):
+        early_stopping_callback = EarlyStopping(
+            monitor=monitor,
+            patience=patience,
+            mode='min',
+            verbose=True
+        )
+        ckpt_callback = ModelCheckpoint(
+            filename='epoch={epoch}-val_loss={val/loss:.2f}',
+            monitor=monitor,
+            save_last=True,
+            save_top_k=1,
+            mode='min',
+            verbose=True,
+            auto_insert_metric_name=False
+        )
+        return early_stopping_callback, ckpt_callback
+
+    def get_logger(self, use_logger='wandb', task_name='m2_2022', **kwargs):
+        if use_logger == 'tensorboard':
+            logger = TensorBoardLogger("m2_2022_logs", name=task_name)
+        elif use_logger == 'wandb':
+            logger = WandbLogger(project=task_name)
+        else:
+            raise NotImplementedError
+        return logger
+
 
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -37,37 +101,16 @@ def main(hparams):
     module = CredibilityAugmentor()
 
     # callbacks
-    ckpt_callbacks = EarlyStopping(
-        monitor='val/f1_weighted',
-        patience=30,    # one check happens after every training epoch
-        mode='max',
-        verbose=True
-    )
-    early_stopping_callbacks = ModelCheckpoint(
-        dirpath=hparams.output_dir,
-        filename='{}-{}'.format(hparams.version, 'epoch={epoch}-val_loss={val/loss:.2f}-val_f1_weighted={val/f1_weighted:.2f}'),
-        save_last=True,
-        save_top_k=1,
-        monitor='val/f1_weighted',  #         monitor='val/loss',
-        mode='max',
-        verbose=True,
-        auto_insert_metric_name=False
-    )
+    early_stopping, ckpt = module.get_callback_fn('val/loss', 50)
+    callbacks_list = [ckpt]
+    if hparams.use_early_stopping:
+        callbacks_list.append(early_stopping)
 
-    # define logger
-    if hparams.use_logger == "wandb":
-        logger = WandbLogger(project=hparams.task_name)
-        logger.watch(module)    # show gradients
-        # log_model: Save checkpoints in wandb dir to upload on W&B servers.
-    else:
-        logger = TensorBoardLogger(f"{hparams.output_dir}/{hparams.task_name}_logs", name=hparams.task_name)
-
+    logger = module.get_logger(**vars(hparams))
     hparams.logger = logger
 
-    trainer = pl.Trainer.from_argparse_args(
-        hparams,
-        callbacks=[ckpt_callbacks, early_stopping_callbacks]
-    )
+    # trainer
+    trainer = pl.Trainer.from_argparse_args(hparams, callbacks=callbacks_list)
     trainer.fit(module)
     # if hparams.do_eval:
     #     trainer.validate(module)
