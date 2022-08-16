@@ -36,9 +36,7 @@ class CredibilityAugmentor(pl.LightningModule):
     def __init__(
         self,
         model_name_or_path,
-        dataset_type,
-        data_file,
-        vocab_file,
+        task_name,
         accumulate_grad_batches,
         max_steps,
         num_training_cases,
@@ -52,10 +50,28 @@ class CredibilityAugmentor(pl.LightningModule):
         num_workers,
         max_seq_length,
         num_display,
-        data_dir='data/',
-        cache_dir='cache/',
+        output_dir,
+        data_dir,
+        cache_dir,
         **kwargs
     ):
+        self.model_name_or_path = model_name_or_path
+        self.task_name = task_name
+        self.accumulate_grad_batches = accumulate_grad_batches
+        self.max_steps = max_steps
+        self.num_training_cases = num_training_cases
+        self.batch_size = batch_size
+        self.max_epochs = max_epochs
+        self.devices = devices
+        self.lr = lr
+        self.eps = eps
+        self.warmup_steps = warmup_steps
+        self.num_workers = num_workers
+        self.max_seq_length = max_seq_length
+        self.num_display = num_display
+        self.output_dir = output_dir
+        self.data_dir = data_dir
+        self.cache_dir = cache_dir
         pass
 
     def setup(self, stage):
@@ -212,7 +228,7 @@ if __name__ == '__main__':
     # model arguments
     parser.add_argument('--model_name_or_path', default='facebook/bart-base')
     parser.add_argument('--task_name', default='m2')
-    parser.add_argument('--output_dir', default='output')
+    parser.add_argument('--output_dir', default='output/')
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--cache_dir", default="cache/", type=str)
     # parser.add_argument("--train_file", default='train.json', type=str)
