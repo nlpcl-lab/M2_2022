@@ -8,6 +8,7 @@ import wandb
 import logging
 import transformers
 import datasets
+import pandas as pd
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
@@ -65,6 +66,7 @@ class CredibilityAugmentor(pl.LightningModule):
         self.devices = devices
         self.lr = lr
         self.eps = eps
+        self.betas = betas
         self.warmup_steps = warmup_steps
         self.num_workers = num_workers
         self.max_seq_length = max_seq_length
@@ -75,7 +77,8 @@ class CredibilityAugmentor(pl.LightningModule):
         pass
 
     def setup(self, stage):
-        datasets = torch.load(self.data_file)
+        total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
+        total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
 
         self.datasets = datasets.map(
             self.tokenize_function,
