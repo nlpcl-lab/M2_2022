@@ -28,7 +28,7 @@ from transformers import (
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
-
+from augment_testor import AugmentorTester
 
 class AugmentModel(nn.Module):
     def __init__(self, model_name_or_path, cache_dir, config):
@@ -93,8 +93,11 @@ class CredibilityAugmentor(pl.LightningModule):
         self.model = AugmentModel(model_name_or_path, cache_dir, config)
 
     def setup(self, stage):
-        total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
-        total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
+        # total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
+        # total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
+        test_docs = pd.read_pickle('./data/test.pickle')
+        user2keyword = pd.read_pickle('./data/user2keyword.pickle')
+        user2keyword = {user_id: likes for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])}
         clusters = {}
         for i in [2, 4, 6, 7]:
             clusters[f'docs{i}'] = pd.read_json(
@@ -112,6 +115,8 @@ class CredibilityAugmentor(pl.LightningModule):
             load_from_cache_file=True, # default False
             desc="Running tokenizer on dataset line_by_line",
         )
+
+        self.testor = AugmentorTester(user2keyword=user2keyword)
 
         print(f'[INFO] {self.task_name} dataset loaded.')
 
