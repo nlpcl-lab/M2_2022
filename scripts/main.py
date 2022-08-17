@@ -21,6 +21,7 @@ from transformers import (
     AdamW,
     AutoConfig,
     AutoModelForSequenceClassification,
+    AutoModelForSeq2SeqLM,
     AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
@@ -30,7 +31,16 @@ from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 
 
 class AugmentModel(nn.Module):
-    def __init__(self):
+    def __init__(self, model_name_or_path, cache_dir, config):
+        super().__init__()
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_name_or_path,
+            from_tf=bool(".ckpt" in model_name_or_path),
+            config=config,
+            cache_dir=cache_dir,
+        )
+
+    def forward(self, batch):
         pass
 
 class CredibilityAugmentor(pl.LightningModule):
@@ -40,7 +50,6 @@ class CredibilityAugmentor(pl.LightningModule):
         task_name,
         accumulate_grad_batches,
         max_steps,
-        num_training_cases,
         batch_size,
         max_epochs,
         devices,
@@ -50,7 +59,6 @@ class CredibilityAugmentor(pl.LightningModule):
         warmup_steps,
         num_workers,
         max_seq_length,
-        num_display,
         output_dir,
         data_dir,
         cache_dir,
@@ -60,7 +68,6 @@ class CredibilityAugmentor(pl.LightningModule):
         self.task_name = task_name
         self.accumulate_grad_batches = accumulate_grad_batches
         self.max_steps = max_steps
-        self.num_training_cases = num_training_cases
         self.batch_size = batch_size
         self.max_epochs = max_epochs
         self.devices = devices
@@ -70,15 +77,25 @@ class CredibilityAugmentor(pl.LightningModule):
         self.warmup_steps = warmup_steps
         self.num_workers = num_workers
         self.max_seq_length = max_seq_length
-        self.num_display = num_display
         self.output_dir = output_dir
         self.data_dir = data_dir
         self.cache_dir = cache_dir
-        pass
+
+        config = AutoConfig.from_pretrained(model_name_or_path, cache_dir=cache_dir)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=cache_dir)
+        self.model = AugmentModel(model_name_or_path, cache_dir, config)
 
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
         total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
+        clusters = {}
+        for i in [2, 4, 6, 7]:
+            clusters[f'docs{i}'] = pd.read_json(
+                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
+            )
+            clusters[f'users{i}'] = pd.read_json(
+                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
+            )
 
         self.datasets = datasets.map(
             self.tokenize_function,
@@ -89,7 +106,7 @@ class CredibilityAugmentor(pl.LightningModule):
             desc="Running tokenizer on dataset line_by_line",
         )
 
-        print(f'[INFO] {self.dataset_type} dataset loaded.')
+        print(f'[INFO] {self.task_name} dataset loaded.')
 
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
@@ -259,6 +276,7 @@ if __name__ == '__main__':
     parser.add_argument('--logging_steps', type=int, default=100)
     parser.add_argument("--eps", type=float, default=1e-6)
     parser.add_argument("--betas", type=float, default=(0.9, 0.98), nargs='+')
+    parser.add_argument('--use_early_stopping', action='store_true')
 
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
 
