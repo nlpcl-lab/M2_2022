@@ -99,7 +99,7 @@ class CredibilityAugmentor(pl.LightningModule):
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
         # total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
-        test_docs = pd.read_pickle('./data/test.pickle')
+        # test_docs = pd.read_pickle('./data/test.pickle')
         # user2keyword = pd.read_pickle('./data/user2keyword.pickle')
         # user2keyword = {
         #     user_id: counter_dict2list(likes)
@@ -137,10 +137,11 @@ class CredibilityAugmentor(pl.LightningModule):
         # len(texts) = 1000
         inputs = examples['input']
         outputs = examples['output']
+        padding = False
 
         batch_encoding = self.tokenizer(
             inputs,
-            padding='max_length',  # @@@ or 'max_length'
+            padding=padding,  # @@@ or 'max_length'
             truncation=True,
             max_length=self.max_seq_length,
             return_tensors='pt',
@@ -148,15 +149,19 @@ class CredibilityAugmentor(pl.LightningModule):
 
         batch_encoding_output = self.text_tokenizer(
             outputs,
-            padding='max_length',   # @@@ or 'max_length'
+            padding=padding,   # @@@ or 'max_length'
             truncation=True,
             max_length=self.max_seq_length,
             return_tensors='pt',
         )
-
-        batch_encoding['decoder_input_ids'] = batch_encoding_output.pop('input_ids')
-        batch_encoding['decoder_token_type_ids'] = batch_encoding_output.pop('token_type_ids')
-        batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
+        batch_encoding['labels'] = batch_encoding_output['input_ids']
+        if padding == "max_length":
+            labels["input_ids"] = [
+                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+            ]
+        # batch_encoding['decoder_input_ids'] = batch_encoding_output.pop('input_ids')
+        # batch_encoding['decoder_token_type_ids'] = batch_encoding_output.pop('token_type_ids')
+        # batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
 
         return batch_encoding
 
