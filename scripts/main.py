@@ -131,8 +131,6 @@ class CredibilityAugmentor(pl.LightningModule):
             desc="Running tokenizer on dataset line_by_line",
         )
 
-        self.testor = AugmentorTester(user2keyword=user2keyword)
-
         print(f'[INFO] {self.task_name} dataset loaded.')
 
     def tokenize_function(self, examples):
@@ -140,8 +138,8 @@ class CredibilityAugmentor(pl.LightningModule):
         inputs = examples['input']
         outputs = examples['output']
 
-        batch_encoding_input = self.tokenizer(
-            texts,
+        batch_encoding = self.tokenizer(
+            inputs,
             padding='max_length',  # @@@ or 'max_length'
             truncation=True,
             max_length=self.max_seq_length,
@@ -149,16 +147,16 @@ class CredibilityAugmentor(pl.LightningModule):
         )
 
         batch_encoding_output = self.text_tokenizer(
-            texts,
+            outputs,
             padding='max_length',   # @@@ or 'max_length'
             truncation=True,
             max_length=self.max_seq_length,
-            return_tensors='np',
+            return_tensors='pt',
         )
 
-        batch_encoding['decoder_input_ids'] = batch_encoding_text.pop('input_ids')
-        batch_encoding['decoder_token_type_ids'] = batch_encoding_text.pop('token_type_ids')
-        batch_encoding['decoder_attention_mask'] = batch_encoding_text.pop('attention_mask')
+        batch_encoding['decoder_input_ids'] = batch_encoding_output.pop('input_ids')
+        batch_encoding['decoder_token_type_ids'] = batch_encoding_output.pop('token_type_ids')
+        batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
 
         return batch_encoding
 
