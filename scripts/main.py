@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser
 from einops import rearrange
 from torch import einsum
 from torch.utils.data import DataLoader
@@ -25,10 +25,13 @@ from transformers import (
     AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
+from datasets import load_dataset, load_metric, Dataset, DatasetDict
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from augment_testor import AugmentorTester
+from utils import counter_dict2list
+
 
 class AugmentModel(nn.Module):
     def __init__(self, model_name_or_path, cache_dir, config):
@@ -46,6 +49,7 @@ class AugmentModel(nn.Module):
         logits = outputs[1]  # tensor([[ 0.1360, -0.0559]], device='cuda:0')
 
         return outputs, loss, logits
+
 
 class CredibilityAugmentor(pl.LightningModule):
     def __init__(
@@ -93,20 +97,31 @@ class CredibilityAugmentor(pl.LightningModule):
         self.model = AugmentModel(model_name_or_path, cache_dir, config)
 
     def setup(self, stage):
-        # total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
+        total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
         # total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
         test_docs = pd.read_pickle('./data/test.pickle')
-        user2keyword = pd.read_pickle('./data/user2keyword.pickle')
-        user2keyword = {user_id: likes for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])}
-        clusters = {}
-        for i in [2, 4, 6, 7]:
-            clusters[f'docs{i}'] = pd.read_json(
-                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
-            )
-            clusters[f'users{i}'] = pd.read_json(
-                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
-            )
+        # user2keyword = pd.read_pickle('./data/user2keyword.pickle')
+        # user2keyword = {
+        #     user_id: counter_dict2list(likes)
+        #     for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])
+        # }
+        # clusters = {}
+        # for i in [2, 4, 6, 7]:
+        #     clusters[f'docs{i}'] = pd.read_json(
+        #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
+        #     )
+        #     clusters[f'users{i}'] = pd.read_json(
+        #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
+        #     )
+        df_train = pd.DataFrame({'input': total_docs.loc[0, :800], 'output': total_docs.loc[1, :800]})
+        df_validation = pd.DataFrame({'input': total_docs.loc[0, 800:900], 'output': total_docs.loc[1, 800:900]})
+        df_test = pd.DataFrame({'input': total_docs.loc[0, 900:1000], 'output': total_docs.loc[1, 900:1000]})
 
+        datasets = DatasetDict({
+            'train': Dataset.from_pandas(df_train),
+            'validation': Dataset.from_pandas(df_validation),
+            'test': Dataset.from_pandas(df_test),
+        })
         self.datasets = datasets.map(
             self.tokenize_function,
             batched=True,
