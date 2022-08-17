@@ -43,6 +43,8 @@ class AugmentModel(nn.Module):
             cache_dir=cache_dir,
         )
 
+        print(f'[INFO] {self.model_name_or_path} model loaded.')
+
     def forward(self, batch):
         outputs = self.model(**batch)
         loss = outputs[0]  # tensor(0.7937, device='cuda:0')
@@ -96,6 +98,9 @@ class CredibilityAugmentor(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=cache_dir)
         self.model = AugmentModel(model_name_or_path, cache_dir, config)
 
+        self.input_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels']
+                          # 'decoder_input_ids', 'decoder_attention_mask', 'decoder_token_type_ids']
+
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
         # total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
@@ -113,9 +118,10 @@ class CredibilityAugmentor(pl.LightningModule):
         #     clusters[f'users{i}'] = pd.read_json(
         #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
         #     )
-        df_train = pd.DataFrame({'input': total_docs.loc[0, :800], 'output': total_docs.loc[1, :800]})
-        df_validation = pd.DataFrame({'input': total_docs.loc[0, 800:900], 'output': total_docs.loc[1, 800:900]})
-        df_test = pd.DataFrame({'input': total_docs.loc[0, 900:1000], 'output': total_docs.loc[1, 900:1000]})
+        idx1, idx2, idx3 = 8000, 9000, 10000
+        df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
+        df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
+        df_test = pd.DataFrame({'input': total_docs.loc[0, idx2:idx3], 'output': total_docs.loc[1, idx2:idx3]})
 
         datasets = DatasetDict({
             'train': Dataset.from_pandas(df_train),
@@ -167,6 +173,24 @@ class CredibilityAugmentor(pl.LightningModule):
         # batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
 
         return batch_encoding
+
+    def _common_step(self, batch, stage):
+        inputs = {k: v for (k, v) in batch.items() if k in self.input_keys}
+        outputs, loss, logits = self.model(inputs)
+
+        self.log(f'{stage}/loss', loss, batch_size=self.batch_size)
+
+        if stage == 'tr':
+            return loss
+        else:
+            pred_ids = logits.argmax(dim=1)
+
+            return {
+                'loss': loss,
+                "golds": batch['text'],
+                "gold_ids": batch["decoder_input_ids"],
+                "pred_ids": pred_ids,
+            }
 
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
@@ -241,7 +265,12 @@ class CredibilityAugmentor(pl.LightningModule):
         return DataLoader(self.datasets['test'], self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self._collate_fn)
 
     def _collate_fn(self, batch):
-        pass
+        df = pd.DataFrame(batch)
+        input_dict = df.to_dict(orient='list')
+        for key in self.input_keys:
+            input_dict[key] = torch.tensor(input_dict[key])
+
+        return input_dict
 
     def get_callback_fn(self, monitor='val/loss', patience=50):
         early_stopping_callback = EarlyStopping(
