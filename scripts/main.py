@@ -41,7 +41,11 @@ class AugmentModel(nn.Module):
         )
 
     def forward(self, batch):
-        pass
+        outputs = self.model(**batch)
+        loss = outputs[0]  # tensor(0.7937, device='cuda:0')
+        logits = outputs[1]  # tensor([[ 0.1360, -0.0559]], device='cuda:0')
+
+        return outputs, loss, logits
 
 class CredibilityAugmentor(pl.LightningModule):
     def __init__(
@@ -64,6 +68,9 @@ class CredibilityAugmentor(pl.LightningModule):
         cache_dir,
         **kwargs
     ):
+        super().__init__()
+        self.save_hyperparameters()
+
         self.model_name_or_path = model_name_or_path
         self.task_name = task_name
         self.accumulate_grad_batches = accumulate_grad_batches
