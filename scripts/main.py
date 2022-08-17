@@ -135,6 +135,33 @@ class CredibilityAugmentor(pl.LightningModule):
 
         print(f'[INFO] {self.task_name} dataset loaded.')
 
+    def tokenize_function(self, examples):
+        # len(texts) = 1000
+        inputs = examples['input']
+        outputs = examples['output']
+
+        batch_encoding_input = self.tokenizer(
+            texts,
+            padding='max_length',  # @@@ or 'max_length'
+            truncation=True,
+            max_length=self.max_seq_length,
+            return_tensors='pt',
+        )
+
+        batch_encoding_output = self.text_tokenizer(
+            texts,
+            padding='max_length',   # @@@ or 'max_length'
+            truncation=True,
+            max_length=self.max_seq_length,
+            return_tensors='np',
+        )
+
+        batch_encoding['decoder_input_ids'] = batch_encoding_text.pop('input_ids')
+        batch_encoding['decoder_token_type_ids'] = batch_encoding_text.pop('token_type_ids')
+        batch_encoding['decoder_attention_mask'] = batch_encoding_text.pop('attention_mask')
+
+        return batch_encoding
+
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
 
