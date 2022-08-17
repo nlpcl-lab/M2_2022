@@ -154,11 +154,14 @@ class CredibilityAugmentor(pl.LightningModule):
             max_length=self.max_seq_length,
             return_tensors='pt',
         )
-        batch_encoding['labels'] = batch_encoding_output['input_ids']
         if padding == "max_length":
-            labels["input_ids"] = [
-                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+            batch_encoding_output["input_ids"] = [
+                [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
+                for label in batch_encoding_output["input_ids"]
             ]
+
+        batch_encoding['labels'] = batch_encoding_output['input_ids']
+
         # batch_encoding['decoder_input_ids'] = batch_encoding_output.pop('input_ids')
         # batch_encoding['decoder_token_type_ids'] = batch_encoding_output.pop('token_type_ids')
         # batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
