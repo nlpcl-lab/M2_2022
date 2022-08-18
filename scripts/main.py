@@ -399,7 +399,7 @@ if __name__ == '__main__':
     parser.add_argument('--logging_steps', type=int, default=100)
     parser.add_argument("--eps", type=float, default=1e-6)
     parser.add_argument("--betas", type=float, default=(0.9, 0.98), nargs='+')
-    parser.add_argument('--logging_steps', type=int, default=100)
+    parser.add_argument('--num_display', type=int, default=3)
     parser.add_argument('--use_early_stopping', action='store_true')
 
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
