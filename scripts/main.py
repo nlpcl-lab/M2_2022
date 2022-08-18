@@ -100,6 +100,7 @@ class CredibilityAugmentor(pl.LightningModule):
 
         self.input_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels']
                           # 'decoder_input_ids', 'decoder_attention_mask', 'decoder_token_type_ids']
+        self.metric = load_metric("bleu")
 
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
@@ -187,10 +188,43 @@ class CredibilityAugmentor(pl.LightningModule):
 
             return {
                 'loss': loss,
-                "golds": batch['text'],
-                "gold_ids": batch["decoder_input_ids"],
+                "golds": batch['output'],
+                "gold_ids": batch["labels"],
                 "pred_ids": pred_ids,
             }
+
+    def _common_epoch_end(self, outputs, stage):
+        output = outputs[0]
+        loss, golds, gold_ids, pred_ids = output["loss"], output["golds"], output["gold_ids"], output["pred_ids"]
+        pred_tokens = self.text_tokenizer.batch_decode(
+            pred_ids,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True
+        )
+        gold_tokens = self.text_tokenizer.batch_decode(
+            gold_ids,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True
+        )
+
+        # bleu
+        scores = self.metric.compute(references=gold_tokens, hypotheses=pred_tokens)
+
+        # logging
+        for k in scores.keys():
+            self.log(f'{stage}/{k}', scores[k])
+
+        # display results
+        print('============================================================')
+        print(f'[INFO] Sample token outputs at epoch {self.current_epoch}')
+        print(f'\nText: {golds[:self.num_display]}')
+        print(f'\nAnswer token: {gold_tokens[:self.num_display]}')
+        print(f'\nGenerated token: {pred_tokens[:self.num_display]}')
+        print(f'\nAnswer ids: {gold_ids[:self.num_display]}')
+        print(f'\nGenerated ids: {pred_ids[:self.num_display]}')
+        print(f'\nScores: {scores}')
+        print('============================================================')
+
 
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
@@ -335,7 +369,7 @@ if __name__ == '__main__':
     parser.add_argument('--accelerator', default='gpu')
 
     # model arguments
-    parser.add_argument('--model_name_or_path', default='facebook/bart-base')
+    parser.add_argument('--model_name_or_path', default='facebook/bart-large')
     parser.add_argument('--task_name', default='m2')
     parser.add_argument('--output_dir', default='output/')
     parser.add_argument("--data_dir", default="data/", type=str)
@@ -365,6 +399,7 @@ if __name__ == '__main__':
     parser.add_argument('--logging_steps', type=int, default=100)
     parser.add_argument("--eps", type=float, default=1e-6)
     parser.add_argument("--betas", type=float, default=(0.9, 0.98), nargs='+')
+    parser.add_argument('--logging_steps', type=int, default=100)
     parser.add_argument('--use_early_stopping', action='store_true')
 
     parser.add_argument('--fast_dev_run', action='store_true', default=False)
