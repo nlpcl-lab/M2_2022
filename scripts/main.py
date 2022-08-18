@@ -43,7 +43,7 @@ class AugmentModel(nn.Module):
             cache_dir=cache_dir,
         )
 
-        print(f'[INFO] {self.model_name_or_path} model loaded.')
+        print(f'[INFO] {model_name_or_path} model loaded.')
 
     def forward(self, batch):
         outputs = self.model(**batch)
