@@ -8,7 +8,7 @@ def counter_dict2list(counter_dict):
     return result
 
 
-def bleu(references, hypotheses):
+def bleu(predictions, references):
     """
     Raw corpus BLEU from sacrebleu (without tokenization)
 
@@ -16,9 +16,7 @@ def bleu(references, hypotheses):
     :param references: list of references (strings)
     :return:
     """
-    bleu_scores = sacrebleu.raw_corpus_bleu(
-        sys_stream=hypotheses, ref_streams=[references]
-    ).scores
+    bleu_scores = sacrebleu.raw_corpus_bleu(predictions, [references]).scores
     scores = {}
     for n in range(len(bleu_scores)):
         scores["bleu" + str(n + 1)] = bleu_scores[n]

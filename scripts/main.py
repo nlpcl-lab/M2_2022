@@ -31,7 +31,7 @@ from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from augment_testor import AugmentorTester
-from utils import counter_dict2list
+from utils import bleu, counter_dict2list
 
 
 class AugmentModel(nn.Module):
@@ -208,10 +208,11 @@ class CredibilityAugmentor(pl.LightningModule):
         #     skip_special_tokens=True,
         #     clean_up_tokenization_spaces=True
         # )
-        tokenized_preds = [self.spacy_nlp(x) for x in pred_tokens]
-        tokenized_labels = [[self.spacy_nlp(x)] for x in golds]
+        # tokenized_preds = [self.spacy_nlp(x) for x in pred_tokens]
+        # tokenized_labels = [[self.spacy_nlp(x)] for x in golds]
+
         # bleu
-        scores = self.metric.compute(predictions=tokenized_preds, references=tokenized_labels)
+        scores = bleu(predictions=pred_tokens, references=golds)
 
         # logging
         for k in scores.keys():
