@@ -70,6 +70,7 @@ class CredibilityAugmentor(pl.LightningModule):
         warmup_steps,
         num_workers,
         max_seq_length,
+        num_display,
         output_dir,
         data_dir,
         cache_dir,
@@ -91,6 +92,7 @@ class CredibilityAugmentor(pl.LightningModule):
         self.warmup_steps = warmup_steps
         self.num_workers = num_workers
         self.max_seq_length = max_seq_length
+        self.num_display = num_display
         self.output_dir = output_dir
         self.data_dir = data_dir
         self.cache_dir = cache_dir
@@ -125,6 +127,10 @@ class CredibilityAugmentor(pl.LightningModule):
         df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
         df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
         df_test = pd.DataFrame({'input': total_docs.loc[0, idx2:idx3], 'output': total_docs.loc[1, idx2:idx3]})
+
+        # 빈 셀 포함한 행 제거
+        for df in [df_train, df_validation, df_test]:
+            df_train['input'] = df_train['input'.replace()
 
         datasets = DatasetDict({
             'train': Dataset.from_pandas(df_train),

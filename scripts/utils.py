@@ -16,8 +16,8 @@ def bleu(predictions, references):
     :param references: list of references (strings)
     :return:
     """
-    bleu_scores = sacrebleu.raw_corpus_bleu(predictions, [references]).scores
+    bleu_scores = sacrebleu.raw_corpus_bleu(predictions, [references]).precisions
     scores = {}
     for n in range(len(bleu_scores)):
-        scores["bleu" + str(n + 1)] = bleu_scores[n]
+        scores["bleu" + str(n + 1)] = round(bleu_scores[n], 2)
     return scores
