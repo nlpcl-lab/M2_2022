@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import wandb
 import logging
+import spacy
 import transformers
 import datasets
 import pandas as pd
@@ -98,9 +99,10 @@ class CredibilityAugmentor(pl.LightningModule):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=cache_dir)
         self.model = AugmentModel(model_name_or_path, cache_dir, config)
 
-        self.input_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels']
+        self.input_keys = ['input_ids', 'attention_mask', 'labels']
                           # 'decoder_input_ids', 'decoder_attention_mask', 'decoder_token_type_ids']
         self.metric = load_metric("bleu")
+        self.spacy_nlp = spacy.load('en_core_web_sm')
 
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
@@ -144,24 +146,24 @@ class CredibilityAugmentor(pl.LightningModule):
         # len(texts) = 1000
         inputs = examples['input']
         outputs = examples['output']
-        padding = False
+        padding = True
 
         batch_encoding = self.tokenizer(
             inputs,
             padding=padding,  # @@@ or 'max_length'
             truncation=True,
             max_length=self.max_seq_length,
-            return_tensors='pt',
+            return_tensors='np',
         )
 
-        batch_encoding_output = self.text_tokenizer(
+        batch_encoding_output = self.tokenizer(
             outputs,
-            padding=padding,   # @@@ or 'max_length'
+            padding=padding,
             truncation=True,
             max_length=self.max_seq_length,
-            return_tensors='pt',
+            return_tensors='np',
         )
-        if padding == "max_length":
+        if padding == "max_length" or padding == True:
             batch_encoding_output["input_ids"] = [
                 [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
                 for label in batch_encoding_output["input_ids"]
@@ -184,7 +186,7 @@ class CredibilityAugmentor(pl.LightningModule):
         if stage == 'tr':
             return loss
         else:
-            pred_ids = logits.argmax(dim=1)
+            pred_ids = logits.argmax(dim=2)
 
             return {
                 'loss': loss,
@@ -196,19 +198,20 @@ class CredibilityAugmentor(pl.LightningModule):
     def _common_epoch_end(self, outputs, stage):
         output = outputs[0]
         loss, golds, gold_ids, pred_ids = output["loss"], output["golds"], output["gold_ids"], output["pred_ids"]
-        pred_tokens = self.text_tokenizer.batch_decode(
+        pred_tokens = self.tokenizer.batch_decode(
             pred_ids,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True
         )
-        gold_tokens = self.text_tokenizer.batch_decode(
-            gold_ids,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=True
-        )
-
+        # gold_tokens = self.tokenizer.batch_decode(
+        #     gold_ids,
+        #     skip_special_tokens=True,
+        #     clean_up_tokenization_spaces=True
+        # )
+        tokenized_preds = [self.spacy_nlp(x) for x in pred_tokens]
+        tokenized_labels = [[self.spacy_nlp(x)] for x in golds]
         # bleu
-        scores = self.metric.compute(references=gold_tokens, hypotheses=pred_tokens)
+        scores = self.metric.compute(predictions=tokenized_preds, references=tokenized_labels)
 
         # logging
         for k in scores.keys():
@@ -218,7 +221,7 @@ class CredibilityAugmentor(pl.LightningModule):
         print('============================================================')
         print(f'[INFO] Sample token outputs at epoch {self.current_epoch}')
         print(f'\nText: {golds[:self.num_display]}')
-        print(f'\nAnswer token: {gold_tokens[:self.num_display]}')
+        # print(f'\nAnswer token: {gold_tokens[:self.num_display]}')
         print(f'\nGenerated token: {pred_tokens[:self.num_display]}')
         print(f'\nAnswer ids: {gold_ids[:self.num_display]}')
         print(f'\nGenerated ids: {pred_ids[:self.num_display]}')
