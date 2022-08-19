@@ -2,7 +2,7 @@
 
 ## environment
 1. conda create -n m2 python=3.8
-2. pip install pandas portalocker opencv-python sklearn spacy matplotlib wandb torchtext einops
+2. pip install pandas portalocker opencv-python sklearn spacy matplotlib wandb torchtext einops sacrebleu
 python -m spacy download en
 
 3. (nlpgpu10) conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
