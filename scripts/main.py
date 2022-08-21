@@ -123,7 +123,7 @@ class CredibilityAugmentor(pl.LightningModule):
         #     clusters[f'users{i}'] = pd.read_json(
         #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
         #     )
-        idx1, idx2, idx3 = 800, 900, 1000
+        idx1, idx2, idx3 = 80000, 90000, 100000
         df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
         df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
         df_test = pd.DataFrame({'input': total_docs.loc[0, idx2:idx3], 'output': total_docs.loc[1, idx2:idx3]})
@@ -155,7 +155,7 @@ class CredibilityAugmentor(pl.LightningModule):
         # len(texts) = 1000
         inputs = examples['input']
         outputs = examples['output']
-        padding = True
+        padding = 'max_length'
 
         batch_encoding = self.tokenizer(
             inputs,
@@ -228,7 +228,7 @@ class CredibilityAugmentor(pl.LightningModule):
             self.log(f'{stage}/{k}', scores[k])
 
         # display results
-        print('============================================================')
+        print('\n============================================================')
         print(f'[INFO] Sample token outputs at epoch {self.current_epoch}')
         print(f'\nText: {golds[:self.num_display]}')
         # print(f'\nAnswer token: {gold_tokens[:self.num_display]}')
@@ -327,6 +327,7 @@ class CredibilityAugmentor(pl.LightningModule):
             verbose=True
         )
         ckpt_callback = ModelCheckpoint(
+            dirpath=self.output_dir,
             filename='epoch={epoch}-val_loss={val/loss:.2f}',
             monitor=monitor,
             save_last=True,
@@ -378,11 +379,11 @@ if __name__ == '__main__':
 
     # initialization
     parser.add_argument("--seed", default=42, type=int)
-    parser.add_argument('--devices', nargs='+', type=int, default=[0, 1])
+    parser.add_argument('--devices', nargs='+', type=int, default=[0])
     parser.add_argument('--accelerator', default='gpu')
 
     # model arguments
-    parser.add_argument('--model_name_or_path', default='facebook/bart-large')
+    parser.add_argument('--model_name_or_path', default='facebook/bart-base')
     parser.add_argument('--task_name', default='m2')
     parser.add_argument('--output_dir', default='output/')
     parser.add_argument("--data_dir", default="data/", type=str)
@@ -400,13 +401,13 @@ if __name__ == '__main__':
 
     # training arguments
     parser.add_argument("--max_seq_length", default=512, type=int)
-    parser.add_argument("--batch_size", default=32, type=int)
-    parser.add_argument("--max_epochs", default=2, type=int)
+    parser.add_argument("--batch_size", default=8, type=int)
+    parser.add_argument("--max_epochs", default=10, type=int)
     parser.add_argument("--max_steps", default=-1, type=int)
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--overfit_batches", default=0, type=float, help="Not used, implemented in utils.py")
     parser.add_argument("--gradient_clip_val", default=0.0, type=float, help="Gradient clipping value")
-    parser.add_argument('--lr', type=float, default=2e-4)
+    parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument("--warmup_steps", type=int, default=100)
     parser.add_argument('--weight_decay', type=float, default=1e-2)
     parser.add_argument('--logging_steps', type=int, default=100)
