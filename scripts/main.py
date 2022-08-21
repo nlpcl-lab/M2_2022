@@ -123,14 +123,17 @@ class CredibilityAugmentor(pl.LightningModule):
         #     clusters[f'users{i}'] = pd.read_json(
         #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
         #     )
-        idx1, idx2, idx3 = 8000, 9000, 10000
+        idx1, idx2, idx3 = 800, 900, 1000
         df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
         df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
         df_test = pd.DataFrame({'input': total_docs.loc[0, idx2:idx3], 'output': total_docs.loc[1, idx2:idx3]})
 
         # 빈 셀 포함한 행 제거
         for df in [df_train, df_validation, df_test]:
-            df_train['input'] = df_train['input'.replace()
+            df['input'] = df['input'].replace('', np.nan, inplace=True)
+            df['output'] = df['output'].replace('', np.nan, inplace=True)
+            df = df.transpose().dropna(subset=['input', 'output'], inplace=True).transpose()
+            print(f"after dropping empty rows: {len(df)}")
 
         datasets = DatasetDict({
             'train': Dataset.from_pandas(df_train),
