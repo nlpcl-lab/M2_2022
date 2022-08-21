@@ -104,12 +104,12 @@ class CredibilityAugmentor(pl.LightningModule):
         self.input_keys = ['input_ids', 'attention_mask', 'labels']
                           # 'decoder_input_ids', 'decoder_attention_mask', 'decoder_token_type_ids']
         self.metric = load_metric("bleu")
-        self.spacy_nlp = spacy.load('en_core_web_sm')
+        # self.spacy_nlp = spacy.load('en_core_web_sm')
 
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
 
-        idx1, idx2, idx3 = 800, 900, 1000
+        idx1, idx2, idx3 = 80000, 90000, 100000
         df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
         df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
         df_test = pd.DataFrame({'input': total_docs.loc[0, idx2:idx3], 'output': total_docs.loc[1, idx2:idx3]})
@@ -140,7 +140,7 @@ class CredibilityAugmentor(pl.LightningModule):
     def tokenize_function(self, examples):
         # len(texts) = 1000
         inputs = examples['input']
-        outputs = examples['output']
+        outputs = [f'{inp} {outp}' for inp, outp in zip(examples['input'], examples['output'])]
         padding = 'max_length'
 
         batch_encoding = self.tokenizer(
@@ -152,8 +152,7 @@ class CredibilityAugmentor(pl.LightningModule):
         )
 
         batch_encoding_output = self.tokenizer(
-            inputs,
-            # [f'{input} {output}' for input, output in zip(inputs, outputs)],
+            outputs,
             padding=padding,
             truncation=True,
             max_length=self.max_seq_length,
@@ -334,25 +333,6 @@ class CredibilityAugmentor(pl.LightningModule):
         return logger
 
 
-class AugmentorEvaluator(object):
-    def __init__(self):
-        total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
-        test_docs = pd.read_pickle('./data/test.pickle')
-        user2keyword = pd.read_pickle('./data/user2keyword.pickle')
-        user2keyword = {
-            user_id: counter_dict2list(likes)
-            for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])
-        }
-        clusters = {}
-        for i in [2, 4, 6, 7]:
-            clusters[f'docs{i}'] = pd.read_json(
-                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
-            )
-            clusters[f'users{i}'] = pd.read_json(
-                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
-            )
-
-
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
     # os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -406,13 +386,13 @@ if __name__ == '__main__':
 
     # training arguments
     parser.add_argument("--max_seq_length", default=512, type=int)
-    parser.add_argument("--batch_size", default=8, type=int)
+    parser.add_argument("--batch_size", default=16, type=int)
     parser.add_argument("--max_epochs", default=10, type=int)
     parser.add_argument("--max_steps", default=-1, type=int)
     parser.add_argument("--accumulate_grad_batches", default=1, type=int)
     parser.add_argument("--overfit_batches", default=0, type=float, help="Not used, implemented in utils.py")
     parser.add_argument("--gradient_clip_val", default=0.0, type=float, help="Gradient clipping value")
-    parser.add_argument('--lr', type=float, default=5e-4)
+    parser.add_argument('--lr', type=float, default=5e-5)
     parser.add_argument("--warmup_steps", type=int, default=100)
     parser.add_argument('--weight_decay', type=float, default=1e-2)
     parser.add_argument('--logging_steps', type=int, default=100)
