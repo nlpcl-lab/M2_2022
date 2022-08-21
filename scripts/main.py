@@ -109,7 +109,7 @@ class CredibilityAugmentor(pl.LightningModule):
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
 
-        idx1, idx2, idx3 = 80000, 90000, 100000
+        idx1, idx2, idx3 = 800, 900, 1000
         df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
         df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
         df_test = pd.DataFrame({'input': total_docs.loc[0, idx2:idx3], 'output': total_docs.loc[1, idx2:idx3]})
@@ -152,17 +152,18 @@ class CredibilityAugmentor(pl.LightningModule):
         )
 
         batch_encoding_output = self.tokenizer(
-            outputs,
+            inputs,
+            # [f'{input} {output}' for input, output in zip(inputs, outputs)],
             padding=padding,
             truncation=True,
             max_length=self.max_seq_length,
             return_tensors='np',
         )
-        if padding == "max_length" or padding == True:
-            batch_encoding_output["input_ids"] = [
-                [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
-                for label in batch_encoding_output["input_ids"]
-            ]
+        # if padding == "max_length" or padding == True:
+        #     batch_encoding_output["input_ids"] = [
+        #         [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
+        #         for label in batch_encoding_output["input_ids"]
+        #     ]
 
         batch_encoding['labels'] = batch_encoding_output['input_ids']
 
@@ -350,6 +351,7 @@ class AugmentorEvaluator(object):
             clusters[f'users{i}'] = pd.read_json(
                 os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
             )
+
 
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
