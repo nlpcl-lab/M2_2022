@@ -130,9 +130,9 @@ class CredibilityAugmentor(pl.LightningModule):
 
         # 빈 셀 포함한 행 제거
         for df in [df_train, df_validation, df_test]:
-            df['input'] = df['input'].replace('', np.nan, inplace=True)
-            df['output'] = df['output'].replace('', np.nan, inplace=True)
-            df = df.transpose().dropna(subset=['input', 'output'], inplace=True).transpose()
+            df['input'].replace('', np.nan, inplace=True)
+            df['output'].replace('', np.nan, inplace=True)
+            df.dropna(subset=['input', 'output'], inplace=True)
             print(f"after dropping empty rows: {len(df)}")
 
         datasets = DatasetDict({
