@@ -108,21 +108,7 @@ class CredibilityAugmentor(pl.LightningModule):
 
     def setup(self, stage):
         total_docs = pd.read_json(os.path.join(self.data_dir, './total_docs.json'))
-        # total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
-        # test_docs = pd.read_pickle('./data/test.pickle')
-        # user2keyword = pd.read_pickle('./data/user2keyword.pickle')
-        # user2keyword = {
-        #     user_id: counter_dict2list(likes)
-        #     for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])
-        # }
-        # clusters = {}
-        # for i in [2, 4, 6, 7]:
-        #     clusters[f'docs{i}'] = pd.read_json(
-        #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
-        #     )
-        #     clusters[f'users{i}'] = pd.read_json(
-        #         os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
-        #     )
+
         idx1, idx2, idx3 = 80000, 90000, 100000
         df_train = pd.DataFrame({'input': total_docs.loc[0, :idx1], 'output': total_docs.loc[1, :idx1]})
         df_validation = pd.DataFrame({'input': total_docs.loc[0, idx1:idx2], 'output': total_docs.loc[1, idx1:idx2]})
@@ -238,7 +224,6 @@ class CredibilityAugmentor(pl.LightningModule):
         print(f'\nScores: {scores}')
         print('============================================================')
 
-
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
 
@@ -347,6 +332,24 @@ class CredibilityAugmentor(pl.LightningModule):
             raise NotImplementedError
         return logger
 
+
+class AugmentorEvaluator(object):
+    def __init__(self):
+        total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
+        test_docs = pd.read_pickle('./data/test.pickle')
+        user2keyword = pd.read_pickle('./data/user2keyword.pickle')
+        user2keyword = {
+            user_id: counter_dict2list(likes)
+            for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])
+        }
+        clusters = {}
+        for i in [2, 4, 6, 7]:
+            clusters[f'docs{i}'] = pd.read_json(
+                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
+            )
+            clusters[f'users{i}'] = pd.read_json(
+                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
+            )
 
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
