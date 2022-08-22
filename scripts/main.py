@@ -185,29 +185,28 @@ class CredibilityAugmentor(pl.LightningModule):
 
             return {
                 'loss': loss,
-                "golds": batch['output'],
                 "gold_ids": batch["labels"],
                 "pred_ids": pred_ids,
             }
 
     def _common_epoch_end(self, outputs, stage):
         output = outputs[0]
-        loss, golds, gold_ids, pred_ids = output["loss"], output["golds"], output["gold_ids"], output["pred_ids"]
+        loss, gold_ids, pred_ids = output["loss"], output["gold_ids"], output["pred_ids"]
         pred_tokens = self.tokenizer.batch_decode(
             pred_ids,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True
         )
-        # gold_tokens = self.tokenizer.batch_decode(
-        #     gold_ids,
-        #     skip_special_tokens=True,
-        #     clean_up_tokenization_spaces=True
-        # )
+        gold_tokens = self.tokenizer.batch_decode(
+            gold_ids,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True
+        )
         # tokenized_preds = [self.spacy_nlp(x) for x in pred_tokens]
         # tokenized_labels = [[self.spacy_nlp(x)] for x in golds]
 
         # bleu
-        scores = bleu(predictions=pred_tokens, references=golds)
+        scores = bleu(predictions=pred_tokens, references=gold_tokens)
 
         # logging
         for k in scores.keys():
@@ -216,7 +215,7 @@ class CredibilityAugmentor(pl.LightningModule):
         # display results
         print('\n============================================================')
         print(f'[INFO] Sample token outputs at epoch {self.current_epoch}')
-        print(f'\nText: {golds[:self.num_display]}')
+        print(f'\nText: {gold_tokens[:self.num_display]}')
         # print(f'\nAnswer token: {gold_tokens[:self.num_display]}')
         print(f'\nGenerated token: {pred_tokens[:self.num_display]}')
         print(f'\nAnswer ids: {gold_ids[:self.num_display]}')
