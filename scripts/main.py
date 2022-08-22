@@ -131,7 +131,7 @@ class CredibilityAugmentor(pl.LightningModule):
             batched=True,
             remove_columns=[],
             num_proc=None,  # default None
-            load_from_cache_file=True, # default False
+            load_from_cache_file=False, # default False
             desc="Running tokenizer on dataset line_by_line",
         )
 
