@@ -28,7 +28,7 @@ from transformers import (
 )
 from datasets import load_dataset, load_metric, Dataset, DatasetDict
 from torch.utils.data import DataLoader
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from augment_testor import AugmentorTester
 from utils import bleu, counter_dict2list
@@ -169,6 +169,29 @@ class CredibilityAugmentor(pl.LightningModule):
         # batch_encoding['decoder_input_ids'] = batch_encoding_output.pop('input_ids')
         # batch_encoding['decoder_token_type_ids'] = batch_encoding_output.pop('token_type_ids')
         # batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
+
+        return batch_encoding
+
+    def tokenize_text(self, context, text):
+        padding = 'max_length'
+
+        batch_encoding = self.tokenizer(
+            context,
+            padding=padding,
+            truncation=True,
+            max_length=self.max_src_len,
+            return_tensors='np',
+        )
+
+        batch_encoding_output = self.tokenizer(
+            text,
+            padding=padding,
+            truncation=True,
+            max_length=self.max_tgt_len,
+            return_tensors='np',
+        )
+
+        batch_encoding['labels'] = batch_encoding_output['input_ids']
 
         return batch_encoding
 
@@ -320,7 +343,9 @@ class CredibilityAugmentor(pl.LightningModule):
             verbose=True,
             auto_insert_metric_name=False
         )
-        return early_stopping_callback, ckpt_callback
+        lr_monitor = LearningRateMonitor(logging_interval='step')
+
+        return early_stopping_callback, ckpt_callback, lr_monitor
 
     def get_logger(self, use_logger='wandb', task_name='m2_2022', **kwargs):
         if use_logger == 'tensorboard':
@@ -331,6 +356,16 @@ class CredibilityAugmentor(pl.LightningModule):
             raise NotImplementedError
         return logger
 
+    def generate_sents(self, sents):
+        batch_encoding = self.tokenizer(
+            sents,
+            padding='max_length',
+            truncation=True,
+            max_length=self.max_src_len,
+            return_tensors='pt',
+        )
+        source_id, source_mask, target_id, target_label = self.encode_text(ctext, text)
+        self.model.eval()
 
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -341,8 +376,8 @@ def main(hparams):
     module = CredibilityAugmentor(**params)
 
     # callbacks
-    early_stopping, ckpt = module.get_callback_fn('val/loss', 50)
-    callbacks_list = [ckpt]
+    early_stopping, ckpt, lr_monitor = module.get_callback_fn('val/loss', 50)
+    callbacks_list = [ckpt, lr_monitor]
     if hparams.use_early_stopping:
         callbacks_list.append(early_stopping)
 
@@ -384,7 +419,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_workers", type=int, default=0)
 
     # training arguments
-    parser.add_argument("--max_seq_length", default=512, type=int)
+    parser.add_argument("--max_seq_length", default=256, type=int)
     parser.add_argument("--batch_size", default=16, type=int)
     parser.add_argument("--max_epochs", default=10, type=int)
     parser.add_argument("--max_steps", default=-1, type=int)
