@@ -1,4 +1,5 @@
 import os
+import pickle
 import re
 import sys
 import math
@@ -14,30 +15,41 @@ import pytorch_lightning as pl
 import pandas as pd
 import numpy as np
 
+from argparse import ArgumentParser
+
+from augment_testor import AugmentorTester
+
 
 class AugmentorEvaluator(object):
-    def __init__(self):
-        total_users = pd.read_json(os.path.join(self.data_dir, './total_user.json'))
-        test_docs = pd.read_pickle('./data/test.pickle')
-        user2keyword = pd.read_pickle('./data/user2keyword.pickle')
-        user2keyword = {
-            user_id: counter_dict2list(likes)
-            for user_id, likes in zip(user2keyword.loc['likes'].index, user2keyword.loc['likes'])
-        }
-        clusters = {}
-        for i in [2, 4, 6, 7]:
-            clusters[f'docs{i}'] = pd.read_json(
-                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_docs_penguin.json')
-            )
-            clusters[f'users{i}'] = pd.read_json(
-                os.path.join(self.data_dir, 'ver3', f'{i}_cluster_ver3_users_penguin.json')
-            )
+    def __init__(self, hparams):
+        self.test_docs = pd.read_pickle(hparams.test_fname)
+        self.testors = self._load_testors(hparams.user2keywords)
+        self.model =
+
+    def _load_testors(self, user2keywords):
+        self.clusters = []
+        testors = []
+
+        for output_file in user2keywords:
+            cluster = self._load_clusters(output_file)
+            self.clusters.append(cluster)
+            testors.append(AugmentorTester(cluster))
+
+        return testors
+
+    def _load_clusters(self, output_file):
+        f = open(output_file, 'rb')
+        user2keyword = pickle.load(f)
+        return user2keyword
+
+    def evaluate_sents(self, original_text, augmented_text):
+        mu1_o, sig1_o, mu1_a, sig1_a = self.testors[0].evaluate(original_text, augmented_text)
+        mu2_o, sig2_o, mu2_a, sig2_a = self.testors[1].evaluate(original_text, augmented_text)
+
+    def evaluate(self):
+        original_texts = self.docs.loc[0].values.tolist()
 
 def main(hparams):
-    # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-    # os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    transformers.set_seed(hparams.seed)
-    hparams.version = len(os.listdir(hparams.output_dir)) if os.path.isdir(hparams.output_dir) else 1
     params = vars(hparams)
     module = CredibilityAugmentor(**params)
 
@@ -58,6 +70,7 @@ def main(hparams):
     if hparams.do_test:
         trainer.test(module)
 
+
 if __name__ == '__main__':
     parser = ArgumentParser(add_help=False)
 
@@ -68,43 +81,12 @@ if __name__ == '__main__':
 
     # model arguments
     parser.add_argument('--model_name_or_path', default='facebook/bart-base')
-    parser.add_argument('--task_name', default='m2')
     parser.add_argument('--output_dir', default='output/')
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--cache_dir", default="cache/", type=str)
-    # parser.add_argument("--train_file", default='train.json', type=str)
-    # parser.add_argument("--eval_file", default='eval.json', type=str)
-    # parser.add_argument("--test_file", default='test.json', type=str)
-    parser.add_argument("--do_test", action="store_true")
-
-    parser.add_argument("--use_logger", default="wandb", type=str, choices=["tensorboard", "wandb"])
-    # parser.add_argument("--use_scheduler", default="linear", type=str, choices=["linear", "onecycle"])
-    parser.add_argument("--overwrite_cache", action="store_true", default=False)
-    parser.add_argument("--use_fast_tokenizer", action="store_true", default=True)
-    parser.add_argument("--num_workers", type=int, default=0)
-
-    # training arguments
-    parser.add_argument("--max_seq_length", default=256, type=int)
-    parser.add_argument("--max_src_len", default=50, type=int)
-    parser.add_argument("--max_tgt_len", default=100, type=int)
-    parser.add_argument("--batch_size", default=16, type=int)
-    parser.add_argument("--max_epochs", default=10, type=int)
-    parser.add_argument("--max_steps", default=-1, type=int)
-    parser.add_argument("--accumulate_grad_batches", default=1, type=int)
-    parser.add_argument("--overfit_batches", default=0, type=float,
-                        help="Not used, implemented in utils.py")
-    parser.add_argument("--gradient_clip_val", default=0.0, type=float, help="Gradient clipping value")
-    parser.add_argument('--lr', type=float, default=5e-5)
-    parser.add_argument("--warmup_steps", type=int, default=100)
-    parser.add_argument('--weight_decay', type=float, default=1e-2)
-    parser.add_argument('--logging_steps', type=int, default=100)
-    parser.add_argument("--eps", type=float, default=1e-6)
-    parser.add_argument("--betas", type=float, default=(0.9, 0.98), nargs='+')
-    parser.add_argument('--num_display', type=int, default=3)
-    parser.add_argument('--use_early_stopping', action='store_true')
-
-    parser.add_argument('--fast_dev_run', action='store_true', default=False)
 
     hparams = parser.parse_args()
+    hparams.test_fname = './data/test.pickle'
+    hparams.user2keywords = ['./data/user2keyword1.pickle', './data/user2keyword2.pickle']
 
     main(hparams)
