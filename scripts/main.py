@@ -179,7 +179,7 @@ class CredibilityAugmentor(pl.LightningModule):
             context,
             padding=padding,
             truncation=True,
-            max_length=self.max_src_len,
+            max_length=self.max_seq_length,
             return_tensors='np',
         )
 
@@ -187,7 +187,7 @@ class CredibilityAugmentor(pl.LightningModule):
             text,
             padding=padding,
             truncation=True,
-            max_length=self.max_tgt_len,
+            max_length=self.max_seq_length,
             return_tensors='np',
         )
 
@@ -276,15 +276,22 @@ class CredibilityAugmentor(pl.LightningModule):
         scheduler = get_linear_schedule_with_warmup(
             optimizer,
             num_warmup_steps=self.warmup_steps,
-            num_training_steps=self.get_estimated_stepping_batches,
+            num_training_steps=self.get_estimated_stepping_batches(),
         )
 
         return {
                 'optimizer': optimizer,
-                'lr_scheduler': {
+                # 이거 때문에 매 epoch마다 lr이 갱신되었음.
+                # 'lr_scheduler': {
+                #     'scheduler': scheduler,
+                #     'monitor': 'val/loss',
+                #     'frequency': self.trainer.check_val_every_n_epoch
+                # },
+            'lr_scheduler': {
                     'scheduler': scheduler,
                     'monitor': 'val/loss',
-                    'frequency': self.trainer.check_val_every_n_epoch
+                    'interval': 'step', # or 'epoch'
+                    'frequency': 1
                 },
             }
 
@@ -343,7 +350,7 @@ class CredibilityAugmentor(pl.LightningModule):
             verbose=True,
             auto_insert_metric_name=False
         )
-        lr_monitor = LearningRateMonitor(logging_interval='step')
+        lr_monitor = LearningRateMonitor(logging_interval=None)
 
         return early_stopping_callback, ckpt_callback, lr_monitor
 
@@ -356,16 +363,26 @@ class CredibilityAugmentor(pl.LightningModule):
             raise NotImplementedError
         return logger
 
-    def generate_sents(self, sents):
-        batch_encoding = self.tokenizer(
-            sents,
-            padding='max_length',
-            truncation=True,
-            max_length=self.max_src_len,
-            return_tensors='pt',
-        )
-        source_id, source_mask, target_id, target_label = self.encode_text(ctext, text)
+    def generate_sents(self, srcs):
+        tgt_cxts = ['' for x in len(srcs)]
+        encoded_text = self.tokenize_text(srcs, tgt_cxts)
         self.model.eval()
+        with torch.no_grad():
+            generated_ids = self.model.generate(
+                input_ids=encoded_text['input_ids'],
+                attention_mask=encoded_text['attention_mask'],
+                max_length=self.max_seq_length,
+                truncation=True,
+                num_beams=3,
+                repetition_penalty=2.5,
+                length_penalty=1.0,
+                early_stopping=True
+            )
+            prediction = [self.tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in
+                          generated_ids]
+
+        return prediction
+
 
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -404,7 +421,7 @@ if __name__ == '__main__':
     # model arguments
     parser.add_argument('--model_name_or_path', default='facebook/bart-base')
     parser.add_argument('--task_name', default='m2')
-    parser.add_argument('--output_dir', default='output/')
+    parser.add_argument('--output_dir', default='output/bart-base')
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--cache_dir", default="cache/", type=str)
     # parser.add_argument("--train_file", default='train.json', type=str)
