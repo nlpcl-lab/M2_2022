@@ -53,26 +53,6 @@ class AugmentModel(nn.Module):
 
         return outputs, loss, logits
 
-    def generate_sents(self, srcs):
-        tgt_cxts = ['' for x in len(srcs)]
-        encoded_text = self.tokenize_text(srcs, tgt_cxts)
-        self.model.eval()
-        with torch.no_grad():
-            generated_ids = self.model.generate(
-                input_ids=encoded_text['input_ids'],
-                attention_mask=encoded_text['attention_mask'],
-                max_length=self.max_seq_length,
-                truncation=True,
-                num_beams=3,
-                repetition_penalty=2.5,
-                length_penalty=1.0,
-                early_stopping=True
-            )
-            prediction = [self.tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in
-                          generated_ids]
-
-        return prediction
-
 
 class CredibilityAugmentor(pl.LightningModule):
     def __init__(

@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 
 from argparse import ArgumentParser
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, AutoConfig
 
 from augment_testor import AugmentorTester
 
@@ -24,7 +25,12 @@ class AugmentorEvaluator(object):
     def __init__(self, hparams):
         self.test_docs = pd.read_pickle(hparams.test_fname)
         self.testors = self._load_testors(hparams.user2keywords)
-        self.model =
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
+            hparams.model_name_or_path,
+            from_tf=bool(".ckpt" in hparams.model_name_or_path),
+            cache_dir=hparams.cache_dir,
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained('facebook/bart-base', cache_dir=hparams.cache_dir)
 
     def _load_testors(self, user2keywords):
         self.clusters = []
@@ -48,6 +54,7 @@ class AugmentorEvaluator(object):
 
     def evaluate(self):
         original_texts = self.docs.loc[0].values.tolist()
+
 
 def main(hparams):
     params = vars(hparams)
@@ -80,10 +87,10 @@ if __name__ == '__main__':
     parser.add_argument('--accelerator', default='gpu')
 
     # model arguments
-    parser.add_argument('--model_name_or_path', default='facebook/bart-base')
-    parser.add_argument('--output_dir', default='output/')
+    parser.add_argument('--model_name_or_path', default='output/last-v1.ckpt')
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--cache_dir", default="cache/", type=str)
+    parser.add_argument("--max_seq_length", default=256, type=int)
 
     hparams = parser.parse_args()
     hparams.test_fname = './data/test.pickle'
