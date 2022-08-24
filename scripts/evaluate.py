@@ -90,28 +90,14 @@ class AugmentorEvaluator(object):
             total = np.append(total, self.evaluate_sents(original_text, augmented_text))
 
         percentage = total.sum() / total.shape[0]
-        print('증강률')
+        value = 1
+        print(f'신뢰도 증강 성공률: {percentage:.2f}')
+        print(f'신뢰도 증강율: {value:.2f}')
+
 
 def main(hparams):
-    params = vars(hparams)
-    module = CredibilityAugmentor(**params)
-
-    # callbacks
-    early_stopping, ckpt, lr_monitor = module.get_callback_fn('val/loss', 50)
-    callbacks_list = [ckpt, lr_monitor]
-    if hparams.use_early_stopping:
-        callbacks_list.append(early_stopping)
-
-    logger = module.get_logger(**params)
-    hparams.logger = logger
-
-    # trainer
-    trainer = pl.Trainer.from_argparse_args(hparams, callbacks=callbacks_list)
-    trainer.fit(module)
-    # if hparams.do_eval:
-    #     trainer.validate(module)
-    if hparams.do_test:
-        trainer.test(module)
+    evaluator = AugmentorEvaluator(hparams)
+    evaluator.evaluate()
 
 
 if __name__ == '__main__':
