@@ -90,7 +90,7 @@ class AugmentorEvaluator(object):
             total = np.append(total, self.evaluate_sents(original_text, augmented_text))
 
         percentage = total.sum() / total.shape[0]
-        value = 1
+        value = 1   # TODO
         print(f'신뢰도 증강 성공률: {percentage:.2f}')
         print(f'신뢰도 증강율: {value:.2f}')
 
