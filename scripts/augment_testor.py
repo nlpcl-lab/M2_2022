@@ -8,11 +8,15 @@ from sentence_transformers import SentenceTransformer, util
 
 
 class AugmentorTester():
-    def __init__(self, user2keyword, scale_factor=5):
+    def __init__(self, user2keyword, scale_factor=5, clusteridx='0', version=None):
 
         model_name_or_path = "multi-qa-MiniLM-L6-cos-v1"
 
-        self.user_embedding_path = "./user_embed-{}.pickle"
+        if version is not None:
+            self.user_embedding_path = "./cache/user_embed-{}" + f"-{clusteridx}" + f"-v{version}" + ".pickle"
+        else:
+            self.user_embedding_path = "./cache/user_embed-{}" + f"-{clusteridx}" + ".pickle"
+
         self.scale_factor = scale_factor
 
         self.user2keyword = user2keyword

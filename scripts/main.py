@@ -17,7 +17,6 @@ import pytorch_lightning as pl
 from argparse import ArgumentParser
 from einops import rearrange
 from torch import einsum
-from torch.utils.data import DataLoader
 from transformers import (
     AdamW,
     AutoConfig,
@@ -30,8 +29,7 @@ from datasets import load_dataset, load_metric, Dataset, DatasetDict
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
-from augment_testor import AugmentorTester
-from utils import bleu, counter_dict2list
+from utils import bleu
 
 
 class AugmentModel(nn.Module):
@@ -52,6 +50,19 @@ class AugmentModel(nn.Module):
         logits = outputs[1]  # tensor([[ 0.1360, -0.0559]], device='cuda:0')
 
         return outputs, loss, logits
+
+    def generate(self, source_id, source_mask, max_length):
+        generated_ids = self.model.generate(
+            input_ids=torch.tensor(source_id),
+            attention_mask=torch.tensor(source_mask),
+            max_length=max_length,
+            num_beams=3,
+            repetition_penalty=2.5,
+            length_penalty=1.0,
+            early_stopping=True
+        )
+
+        return generated_ids
 
 
 class CredibilityAugmentor(pl.LightningModule):
@@ -158,17 +169,8 @@ class CredibilityAugmentor(pl.LightningModule):
             max_length=self.max_seq_length,
             return_tensors='np',
         )
-        # if padding == "max_length" or padding == True:
-        #     batch_encoding_output["input_ids"] = [
-        #         [(l if l != self.tokenizer.pad_token_id else -100) for l in label]
-        #         for label in batch_encoding_output["input_ids"]
-        #     ]
 
         batch_encoding['labels'] = batch_encoding_output['input_ids']
-
-        # batch_encoding['decoder_input_ids'] = batch_encoding_output.pop('input_ids')
-        # batch_encoding['decoder_token_type_ids'] = batch_encoding_output.pop('token_type_ids')
-        # batch_encoding['decoder_attention_mask'] = batch_encoding_output.pop('attention_mask')
 
         return batch_encoding
 
@@ -225,8 +227,6 @@ class CredibilityAugmentor(pl.LightningModule):
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True
         )
-        # tokenized_preds = [self.spacy_nlp(x) for x in pred_tokens]
-        # tokenized_labels = [[self.spacy_nlp(x)] for x in golds]
 
         # bleu
         scores = bleu(predictions=pred_tokens, references=gold_tokens)
@@ -234,17 +234,6 @@ class CredibilityAugmentor(pl.LightningModule):
         # logging
         for k in scores.keys():
             self.log(f'{stage}/{k}', scores[k])
-
-        # display results
-        print('\n============================================================')
-        print(f'[INFO] Sample token outputs at epoch {self.current_epoch}')
-        print(f'\nText: {gold_tokens[:self.num_display]}')
-        # print(f'\nAnswer token: {gold_tokens[:self.num_display]}')
-        print(f'\nGenerated token: {pred_tokens[:self.num_display]}')
-        print(f'\nAnswer ids: {gold_ids[:self.num_display]}')
-        print(f'\nGenerated ids: {pred_ids[:self.num_display]}')
-        print(f'\nScores: {scores}')
-        print('============================================================')
 
     def training_step(self, batch, batch_idx):
         return self._common_step(batch, 'tr')
@@ -281,12 +270,6 @@ class CredibilityAugmentor(pl.LightningModule):
 
         return {
                 'optimizer': optimizer,
-                # 이거 때문에 매 epoch마다 lr이 갱신되었음.
-                # 'lr_scheduler': {
-                #     'scheduler': scheduler,
-                #     'monitor': 'val/loss',
-                #     'frequency': self.trainer.check_val_every_n_epoch
-                # },
             'lr_scheduler': {
                     'scheduler': scheduler,
                     'monitor': 'val/loss',
@@ -363,26 +346,6 @@ class CredibilityAugmentor(pl.LightningModule):
             raise NotImplementedError
         return logger
 
-    def generate_sents(self, srcs):
-        tgt_cxts = ['' for x in len(srcs)]
-        encoded_text = self.tokenize_text(srcs, tgt_cxts)
-        self.model.eval()
-        with torch.no_grad():
-            generated_ids = self.model.generate(
-                input_ids=encoded_text['input_ids'],
-                attention_mask=encoded_text['attention_mask'],
-                max_length=self.max_seq_length,
-                truncation=True,
-                num_beams=3,
-                repetition_penalty=2.5,
-                length_penalty=1.0,
-                early_stopping=True
-            )
-            prediction = [self.tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True) for g in
-                          generated_ids]
-
-        return prediction
-
 
 def main(hparams):
     # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
@@ -424,9 +387,6 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', default='output/bart-base')
     parser.add_argument("--data_dir", default="data/", type=str)
     parser.add_argument("--cache_dir", default="cache/", type=str)
-    # parser.add_argument("--train_file", default='train.json', type=str)
-    # parser.add_argument("--eval_file", default='eval.json', type=str)
-    # parser.add_argument("--test_file", default='test.json', type=str)
     parser.add_argument("--do_test", action="store_true")
 
     parser.add_argument("--use_logger", default="wandb", type=str, choices=["tensorboard", "wandb"])
