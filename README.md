@@ -46,4 +46,4 @@ scikit-learn 1.1.2
    1. 스크립트 실행 결과 출력된 로그로 신뢰도 증강 성공률과 신뢰도 증가율 확인
    
 ## experiments
-self.testor = AugmentorTester(user2keyword=user2keyword)
+self.testor = AugmentorTester(user2keyword=user2keyword)hh
