@@ -50,7 +50,7 @@ class AugmentorEvaluator(object):
         elif abs(sig1_a - sig2_a) == 0.0:
             value2 = ((abs(mu1_o - mu2_o) - abs(mu1_a - mu2_a)) / abs(mu1_a - mu2_a))
         else:
-            value2 = ((abs(mu1_o - mu2_o) - abs(mu1_a - mu2_a)) / abs(mu1_a - mu2_a)) + ((abs(sig1_o - sig2_o) - abs(sig1_a - sig2_a)) / abs(sig1_a - sig2_a))
+            value2 = (((abs(mu1_o - mu2_o) - abs(mu1_a - mu2_a)) / abs(mu1_a - mu2_a)) + ((abs(sig1_o - sig2_o) - abs(sig1_a - sig2_a)) / abs(sig1_a - sig2_a))) / 2
 
         return correct, value2
 
@@ -83,8 +83,8 @@ class AugmentorEvaluator(object):
             total_c.append(correct)
             total_v.append(value2)
 
-        percentage = sum(total_c)/ len(total_c)
-        tvalue = sum(total_v)/ len(total_v)
+        percentage = sum(total_c) / len(total_c)
+        tvalue = sum(total_v) / len(total_v)
         print(f'신뢰도 증강 성공률: {percentage:.2f}')
         print(f'신뢰도 증강율: {tvalue:.2f}')
 
