@@ -43,4 +43,5 @@ scikit-learn 1.1.2
    
 ## experiments
 문서 증강 모델 학습: python main.py
+
 문서 증강 모델 평가: python evaluate.py
