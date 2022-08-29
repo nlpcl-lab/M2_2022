@@ -2,7 +2,7 @@
 
 ## environment
 1. conda create -n m2 python=3.8
-2. pip install pandas portalocker opencv-python sklearn spacy matplotlib wandb torchtext einops sacrebleu
+2. pip install pandas portalocker sklearn spacy matplotlib wandb torchtext einops sacrebleu
 python -m spacy download en
 
 3. (nlpgpu10) conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
@@ -30,20 +30,17 @@ scikit-learn 1.1.2
 ### 시험 절차
 1. 시험데이터 확인
    1. 내용: 대상 문장과 사용자 통계자료(json file)
+      1. total_docs.json
    2. 데이터 수: print(len: # of data)
+      1. main.py line 121-126: 10만개 문서에 대해 8:1:1 비율로 학습/검증/테스트
 2. 소스코드 확인
    1. 데이터 입력
-   2. 시험 데이터 샘플링
-   3. 입력 문장에 대해 증강된 문장 생성
-   4. 신뢰도 증강 성공률과 신뢰도 증가율 산출 출력
-3. 스크립트 실행
-   1. 입력 문장에 대해 증강된 문장을 생성
-   2. 입력 문장과 증강된 문장에 대한 신뢰도 및 신뢰도 표준편차를 계산
-   3. 신뢰도 증강 성공률과 신뢰도 증가율 산출 및 출력
-      1. 신뢰도 증강 성공률 = 
-      2. 신뢰도 증가율 =
-4. 결과확인
-   1. 스크립트 실행 결과 출력된 로그로 신뢰도 증강 성공률과 신뢰도 증가율 확인
+      1. main.py line 120-149
+   2. 문서 증강 모델 학습
+      1. main.py line all
+   3. 신뢰도 증강 성공률과 신뢰도 증가율 산출 출력
+      1. evaluate.py line 43-55, 86-87
    
 ## experiments
-self.testor = AugmentorTester(user2keyword=user2keyword)hh
+문서 증강 모델 학습: python main.py
+문서 증강 모델 평가: python evaluate.py
