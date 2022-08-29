@@ -270,7 +270,7 @@ class CredibilityAugmentor(pl.LightningModule):
 
         return {
                 'optimizer': optimizer,
-            'lr_scheduler': {
+                'lr_scheduler': {
                     'scheduler': scheduler,
                     'monitor': 'val/loss',
                     'interval': 'step', # or 'epoch'
