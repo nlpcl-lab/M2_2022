@@ -5,7 +5,7 @@
 2. pip install pandas portalocker sklearn spacy matplotlib wandb torchtext einops sacrebleu
 python -m spacy download en
 
-3. (nlpgpu10) conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
+3. (gpu10) conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
 4. pip install pytorch-lightning transformers
 
 ## 신뢰도 증강기
